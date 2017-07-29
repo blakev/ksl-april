@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>KSL Cars Crawl</title>
+
+    <link href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css" />
+</head>
+<body>
+
+{% macro field(f) %}
+<div class="form-group">
+    {{ f.label(class_="col-sm-2 control-label") }}
+    <div class="col-sm-10">
+        {{ f(class_="form-control") }}
+        <p class="text-muted">
+            {{ f.description }}
+        </p>
+        {% if f.errors %}
+        <ul class="text-danger">
+            {% for e in f.errors %}
+            <li>{{ e }}</li>
+            {% endfor %}
+        </ul>
+        {% endif %}
+    </div>
+</div>
+{% endmacro %}
+
+{% macro new_form() %}
+<form action="/" method="POST" class="form-horizontal">
+    {{ form.csrf_token }}
+    {{ field(form.name) }}
+    {{ field(form.url) }}
+    {{ field(form.every) }}
+    <p class="text-right">
+        <button type="submit" class="btn btn-info">
+            Submit
+        </button>
+    </p>
+</form>
+{% endmacro %}
+
+
+{% macro searches_table() %}
+<table class="table table-striped">
+    <thead>
+        <tr>
+            <th></th>
+            <th>Name</th>
+            <th>Every</th>
+            <th>Created</th>
+            <th>Last Found</th>
+            <th>Found</th>
+            <th>Preview</th>
+        </tr>
+    </thead>
+    <tbody>
+    {% for s in searches %}
+        <tr>
+            <td>
+                <a href="{{ url_for('modify_search', action='disable', search_id=s.id) }}" class="btn btn-danger btn-xs">
+                    <i class="fa fa-close"></i>
+                </a>
+            </td>
+            <td>
+                <a href="{{ s.url }}" target="_blank">
+                    {{ s.name }}
+                    <i class="fa fa-external-link"></i>
+                </a>
+            </td>
+            <td>
+                {{ s.every }} min.
+            </td>
+            <td>{{ s.created }}</td>
+            <td>
+                <a href="https://www.ksl.com/auto/listing/{{ s.last_found.ksl_id }}">
+                    {{ s.last_found.ksl_id }}
+                </a>
+            </td>
+            <td>
+                <a href="{{ url_for('found', }}"></a>
+                {{ s.items_found }}
+            </td>
+            <td>
+                <ul>
+                {% for k, v in s.preview %}
+                    <li><b>{{ k | capitalize }}</b>: {{ v }}</li>
+                {% endfor %}
+                </ul>
+            </td>
+        </tr>
+    {% endfor %}
+    </tbody>
+</table>
+{% endmacro %}
+
+
+<div class="container">
+    <div class="row">
+        <div class="col-sm-12">
+            {% with messages = get_flashed_messages(with_categories=true) %}
+                {% if messages %}
+                    {% for category, message in messages %}
+                        <div class="alert alert-{{ category }} alert-dismissible" role="alert">
+                            <button type="button" class="close" data-dismiss="alert" aria-label="Close">
+                                <span aria-hidden="true">&times;</span>
+                            </button>
+                            <b>{{ category | capitalize }}!</b>
+                            {{ message | safe }}
+                        </div>
+                    {% endfor %}
+                {% endif %}
+            {% endwith %}
+            <h2><i class="fa fa-search"></i> New Search</h2>
+        </div>
+    </div>
+    <div class="row">
+        <div class="col-sm-12">
+            <div class="well">
+                {{ new_form() }}
+            </div>
+        </div>
+    </div>
+
+    {% if searches %}
+    <div class="row">
+        <div class="col-sm-12">
+            <h3><i class="fa fa-list-ol"></i> Existing Searches</h3>
+            <hr>
+            {{ searches_table() }}
+        </div>
+    </div>
+    {% endif %}
+
+    {% if disabled_searches %}
+    <div class="row">
+        <div class="col-sm-12">
+            <h3>
+                <i class="fa fa-list-ol text-danger"></i>
+                Disabled Searches</h3>
+            <hr>
+            <ul class="list-unstyled">
+                {% for s in disabled_searches %}
+                <li>
+                    <h4>{{ s.name }}</h4>
+                    <a href="{{ url_for('modify_search', action='enable', search_id=s.id) }}" class="btn btn-success btn-sm">
+                        <i class="fa fa-check"></i> Enable
+                    </a>
+                    <a href="{{ url_for('modify_search', action='delete', search_id=s.id) }}" class="btn btn-danger btn-sm">
+                        <i class="fa fa-trash"></i> Delete
+                    </a>
+                </li>
+                {% endfor %}
+            </ul>
+        </div>
+    </div>
+    {% endif %}
+</div>
+
+<script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/js/bootstrap.min.js"></script>
+</body>
+</html>
