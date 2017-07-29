@@ -22,6 +22,7 @@ import json
 import logging
 import os
 from selenium.webdriver import Remote, ChromeOptions
+from selenium.common.exceptions import TimeoutException
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
@@ -265,8 +266,14 @@ def load_search(s_id, *, first=False):
             return False
 
     # get the listings
-    all_items = WebDriverWait(driver, 20, 1).until(find_listings)
-    logger.info('found %d items', len(all_items))
+    try:
+        all_items = WebDriverWait(driver, 20, 1).until(find_listings)
+        logger.info('found %d items', len(all_items))
+    except TimeoutException:
+        logger.debug('did not find any listings')
+        DLock.release()
+        gevent.spawn_later(s.every * 60, load_search, s_id, first=False)
+        return
 
     # previously found
     for el in all_items:
