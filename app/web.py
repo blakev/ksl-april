@@ -308,17 +308,18 @@ def load_search(s_id, *, first=False):
     DLock.release()
 
 
-# initial search!!
-threads = []
-for s in Searches.query.filter_by(deleted=False).all():
-    logger.info('loading search: %s', s.name)
-    g = gevent.spawn(load_search, s.id, first=True)
-    threads.append(g)
-for t in threads:
-    t.join()
 
+def init():
+    # initial search!!
+    threads = []
+    for s in Searches.query.filter_by(deleted=False).all():
+        logger.info('loading search: %s', s.name)
+        g = gevent.spawn(load_search, s.id, first=True)
+        threads.append(g)
+    for t in threads:
+        t.join()
 
-#
+gevent.spawn_later(2.0, init)
 
 if __name__ == '__main__':
     app.run('localhost', 5999)
