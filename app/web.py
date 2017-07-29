@@ -21,7 +21,7 @@ from gevent.lock import Semaphore
 import json
 import logging
 import os
-from selenium.webdriver import Chrome, ChromeOptions
+from selenium.webdriver import Remote, ChromeOptions
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
@@ -64,14 +64,18 @@ sms = Client(sms_config.account, sms_config.auth_token)
 def make_driver():
     d_path = os.path.abspath(os.path.join(os.path.split(__file__)[0], os.pardir, 'bin'))
     d_options = ChromeOptions()
-    d_options.add_argument('--headless')
-    d_options.add_argument('--window-size=1920,1080')
-    # d_options.add_extension(os.path.join(d_path, 'ublock.crx'))
-    d_options.binary_location = r'/usr/bin/chromium'
-    driver = Chrome(os.path.join(d_path, 'chromedriver'), chrome_options=d_options)
+    #d_options.add_argument('--headless')
+    #d_options.add_argument('--window-size=1920,1080')
+    d_options.add_extension(os.path.join(d_path, 'ublock.crx'))
+    #d_options.binary_location = r'/usr/bin/chromium'
+    #driver = Chrome(os.path.join(d_path, 'chromedriver'), chrome_options=d_options)
+    driver = Remote('http://0.0.0.0:4444/wd/hub', d_options.to_capabilities())
     driver.implicitly_wait(DEFAULT_TIMEOUT[0])
     logger.info('created ChromeDriver %s', driver)
     return driver
+
+Driver = make_driver()
+DLock = Semaphore()
 
 
 class CRUDMixin(object):
@@ -239,7 +243,8 @@ def load_search(s_id, *, first=False):
 
     logger.info('starting %s, first? %s', s, first)
 
-    driver = make_driver()
+    DLock.acquire()
+    driver = Driver
     # load the page
     driver.get(s.url)
     WebDriverWait(driver, 15, 0.25).until(lambda d: d.execute_script("return document.readyState") == 'complete')
@@ -293,8 +298,7 @@ def load_search(s_id, *, first=False):
 
     # queue it up for later
     gevent.spawn_later(s.every*60, load_search, s_id, first=False)
-
-    driver.quit()
+    DLock.release()
 
 
 # initial search!!
