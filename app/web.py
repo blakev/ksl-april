@@ -18,14 +18,11 @@ from flask_sqlalchemy import SQLAlchemy
 from flask_wtf import FlaskForm
 import gevent
 from gevent.lock import Semaphore
-import json
 import logging
 import os
 from selenium.webdriver import Remote, ChromeOptions
-from selenium.common.exceptions import TimeoutException
-from selenium.webdriver.common.by import By
+from selenium.common.exceptions import TimeoutException, WebDriverException
 from selenium.webdriver.support.ui import WebDriverWait
-from selenium.webdriver.support import expected_conditions as EC
 from sqlalchemy import desc
 import sys
 from twilio.rest import Client
@@ -171,7 +168,6 @@ def index():
                      form.every.data)
         db.session.add(o)
         db.session.commit()
-        gevent.spawn(load_search, o.id, first=True)
         logger.info('created new search %s', o.id)
         flash('Successfully added new search <u>%s</u>' % o.name, 'success')
 
@@ -180,11 +176,13 @@ def index():
     return render_template('index.html', form=form, searches=searches,
                            disabled_searches=disabled)
 
+
 @app.route('/found/<int:search_id>')
 def found_cars(search_id):
     search = Searches.query.filter_by(id=search_id).first()
     items = FoundItems.query.filter_by(search_id=search_id).order_by(desc(FoundItems.created)).all()
     return render_template('found.html', search=search, items=items)
+
 
 @app.route('/search/<string:action>/<int:search_id>')
 def modify_search(action, search_id):
@@ -234,26 +232,37 @@ def send_text_message(to, message):
 
 
 def get_title(d, url):
-    d.get(url)
-    title = d.title.split('|')[0].strip()
+    try:
+        d.get(url)
+        title = d.title.split('|')[0].strip()
+    except WebDriverException as e:
+        logger.exception(e)
+        return 'Unknown'
+    logger.info('found title: %s', title)
     return title
 
 
 def load_search(s_id, *, first=False):
     s = Searches.query.filter_by(id=s_id).first()
 
+    DLock.acquire()
     logger.info('starting %s, first? %s', s, first)
 
-    DLock.acquire()
     driver = Driver
+
     # load the page
-    driver.get(s.url)
-    WebDriverWait(driver, 15, 0.25).until(lambda d: d.execute_script("return document.readyState") == 'complete')
-
-    gevent.sleep(6)
-
-    # scroll to the bottom of the page
-    driver.execute_script('window.scrollTo(0, document.body.scrollHeight)')
+    try:
+        driver.get(s.url)
+        WebDriverWait(driver, 15, 0.25).until(
+            lambda d: d.execute_script("return document.readyState") == 'complete')
+        # wait a few seconds
+        gevent.sleep(3)
+        # scroll to the bottom of the page
+        driver.execute_script('window.scrollTo(0, document.body.scrollHeight)')
+    except WebDriverException as e:
+        logger.exception(e)
+        DLock.release()
+        return
 
     def find_listings(drv):
         ksl_ids = []
@@ -308,7 +317,6 @@ def load_search(s_id, *, first=False):
     DLock.release()
 
 
-
 def init():
     # initial search!!
     threads = []
@@ -323,6 +331,3 @@ gevent.spawn_later(2.0, init)
 
 if __name__ == '__main__':
     app.run('localhost', 5999)
-    #
-    # except KeyboardInterrupt:
-    #     driver.quit()
